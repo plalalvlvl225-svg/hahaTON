@@ -1,0 +1,14 @@
+# Виртуальное окружение и служебные файлы Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Результат работы программы
+out.txt
+!examples/out.txt
+
+# Настройки редакторов
+.idea/
+.vscode/
+/.vs
