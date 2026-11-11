@@ -10,17 +10,26 @@ from tight_flow import solve_tight
 
 def normalized_costs(costs):
     """Remove row and column offsets. Use fixed-width math only with headroom."""
-    # Convert before subtraction: both endpoints may fit int64 while their
-    # difference does not. Only the size of the reduced costs matters later.
-    if costs.dtype != object and int(costs.max()) - int(costs.min()) > int(np.iinfo(costs.dtype).max):
-        costs = costs.astype(object)
-    weights = costs - costs.min(axis=1)[:, None]
+    # A tree potential is a signed sum on a path of < n+m edges. A reduced
+    # cost uses two potentials. Reserve room for the 32 tight-flow updates too.
+    headroom = 2 * sum(costs.shape) + 128
+    span = int(costs.max()) - int(costs.min())
+    if costs.dtype == object or span * headroom > 2**63 - 1:
+        # Four-cell differences cancel *any* supplier and consumer surcharges.
+        # If the remaining tariffs share a large unit, it will now be visible.
+        # Use Python integers before these subtractions to avoid overflow.
+        exact = costs.astype(object, copy=False)
+        weights = exact - exact[:, :1]
+        weights -= weights[0].copy()
+        weights -= weights.min(axis=1)[:, None]
+    else:
+        # The public file reader supplies int64. Widen smaller integer arrays
+        # too when their row differences cannot fit in their original dtype.
+        if span > int(np.iinfo(costs.dtype).max):
+            costs = costs.astype(np.int64)
+        weights = costs - costs.min(axis=1)[:, None]
     weights -= weights.min(axis=0)
 
-    # A tree potential is a signed sum along a path of < n+m edges. The
-    # reduced cost also subtracts two such potentials. Reserve extra room
-    # for the bounded number of dual updates in the tight-route algorithm.
-    headroom = 2 * sum(weights.shape) + 128
     highest = int(weights.max())
     if highest * headroom > 2**63 - 1:
         # Large prices can share a unit (e.g. monetary amounts scaled by 10**40).
