@@ -1,5 +1,7 @@
 """Exact minimum-cost transportation for balanced integer margins."""
 
+from math import gcd
+
 import numpy as np
 
 from simplex import solve_simplex
@@ -18,7 +20,24 @@ def normalized_costs(costs):
     # A tree potential is a signed sum along a path of < n+m edges. The
     # reduced cost also subtracts two such potentials. Reserve extra room
     # for the bounded number of dual updates in the tight-route algorithm.
-    bound = (2 * sum(weights.shape) + 128) * int(weights.max())
+    headroom = 2 * sum(weights.shape) + 128
+    highest = int(weights.max())
+    if highest * headroom > 2**63 - 1:
+        # Large prices can share a unit (e.g. monetary amounts scaled by 10**40).
+        # A short sample can disprove a common factor. Verify it on all entries
+        # before dividing; a positive divisor preserves every optimum.
+        flat = weights.ravel()
+        divisor = highest
+        for value in flat[::max(1, flat.size // 64)]:
+            divisor = gcd(divisor, int(value))
+            if divisor == 1:
+                break
+        if divisor > 1:
+            divisor = int(np.gcd.reduce(flat, initial=divisor))
+            if divisor > 1:
+                weights //= divisor
+                highest //= divisor
+    bound = headroom * highest
     if bound <= 2**31 - 1:
         return weights.astype(np.int32, copy=False)
     if bound <= 2**63 - 1:
