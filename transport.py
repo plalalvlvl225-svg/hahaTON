@@ -3,13 +3,14 @@
 import numpy as np
 
 from simplex import solve_simplex
+from tight_flow import solve_tight
 
 
 def normalized_costs(costs):
     """Remove row and column offsets. Use fixed-width math only with headroom."""
     # Convert before subtraction: both endpoints may fit int64 while their
     # difference does not. Only the size of the reduced costs matters later.
-    if costs.dtype != object and int(costs.max()) - int(costs.min()) > np.iinfo(costs.dtype).max:
+    if costs.dtype != object and int(costs.max()) - int(costs.min()) > int(np.iinfo(costs.dtype).max):
         costs = costs.astype(object)
     weights = costs - costs.min(axis=1)[:, None]
     weights -= weights.min(axis=0)
@@ -23,6 +24,14 @@ def normalized_costs(costs):
     if bound <= 2**63 - 1:
         return weights.astype(np.int64, copy=False)
     return weights.astype(object, copy=False)
+
+
+def _solve_active(supply, demand, costs):
+    weights = normalized_costs(costs)
+    plan = solve_tight(supply, demand, weights)
+    if plan is None:
+        plan = solve_simplex(supply, demand, weights)
+    return plan
 
 
 def solve(supply: list[int], demand: list[int], costs: np.ndarray) -> list[dict[int, int]]:
@@ -41,12 +50,11 @@ def solve(supply: list[int], demand: list[int], costs: np.ndarray) -> list[dict[
         return plan
 
     if len(rows) == len(supply) and len(cols) == len(demand):
-        return solve_simplex(supply, demand, normalized_costs(costs))
+        return _solve_active(supply, demand, costs)
 
     active_supply = [supply[i] for i in rows]
     active_demand = [demand[j] for j in cols]
-    weights = normalized_costs(costs[np.ix_(rows, cols)])
-    active_plan = solve_simplex(active_supply, active_demand, weights)
+    active_plan = _solve_active(active_supply, active_demand, costs[np.ix_(rows, cols)])
     for i, row in zip(rows, active_plan):
         plan[i] = {cols[j]: amount for j, amount in row.items()}
     return plan
