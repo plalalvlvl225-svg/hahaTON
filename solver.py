@@ -226,7 +226,11 @@ class _PrimalDual:
         self._collect_candidates()
 
         # --- Сеть нулевых клеток (списки смежности).
-        self._build_zero_network()
+        zero = np.flatnonzero(self.cand_reduced == 0)
+        rows, cols = self.cand_row[zero], self.cand_col[zero]
+        self.zero_cols = _group_by_key(rows, cols, self.n_rows)      # строка -> столбцы
+        by_col = np.argsort(cols, kind="stable")
+        self.zero_rows = _group_by_key(cols[by_col], rows[by_col], self.n_cols)  # столбец -> строки
 
         # --- Текущий план и остатки.
         self.supply_left = list(supply)          # ещё не вывезено от поставщика
@@ -443,18 +447,20 @@ class _PrimalDual:
                 needed = 0
             self._extend_candidates(needed)
 
-        self.cand_reduced += side * np.int64(delta)
+        cand_reduced = self.cand_reduced
+        lost = np.flatnonzero((side > 0) & (cand_reduced == 0))
+        cand_reduced += side * np.int64(delta)
+        born = np.flatnonzero(crossing & (cand_reduced == 0))
         self.row_rise[in_s_row] += delta
         self.col_drop[in_s_col] += delta
-        self._build_zero_network()
 
-    def _build_zero_network(self):
-        """Строит списки смежности сети нулевых клеток по списку кандидатов."""
-        zero = np.flatnonzero(self.cand_reduced == 0)
-        rows, cols = self.cand_row[zero], self.cand_col[zero]
-        self.zero_cols = _group_by_key(rows, cols, self.n_rows)      # строка -> столбцы
-        by_col = np.argsort(cols, kind="stable")
-        self.zero_rows = _group_by_key(cols[by_col], rows[by_col], self.n_cols)  # столбец -> строки
+        zero_cols, zero_rows = self.zero_cols, self.zero_rows
+        for i, j in zip(self.cand_row[lost].tolist(), self.cand_col[lost].tolist()):
+            zero_cols[i].remove(j)
+            zero_rows[j].remove(i)
+        for i, j in zip(self.cand_row[born].tolist(), self.cand_col[born].tolist()):
+            zero_cols[i].append(j)
+            zero_rows[j].append(i)
 
     # ------------------------------------------------------------------
     # Список клеток-кандидатов
