@@ -15,6 +15,28 @@ def read_row(stream, width):
     return row
 
 
+def read_costs(stream, n, m):
+    """Parse common prices directly into an array; preserve long integers exactly."""
+    matrix = np.empty((n, m), dtype=np.int64)
+    digits = bytes.maketrans(b"0123456789", b"0" * 10)
+    for i in range(n):
+        line = stream.readline()
+        # NumPy has fixed-width integers. Recognize every possibly oversized
+        # token *before* parsing: a signed 18-digit magnitude always fits.
+        if b"0" * 19 in line.translate(digits):
+            row = list(map(int, line.split()))
+            if matrix.dtype != object and any(abs(x) >= 2**63 for x in row):
+                wide = np.empty((n, m), dtype=object)
+                wide[:i] = matrix[:i]
+                matrix = wide
+        else:
+            row = np.fromstring(line, dtype=np.int64, sep=" ")
+        if len(row) != m:
+            raise ValueError(f"В строке тарифов {i + 1} ожидалось {m} чисел")
+        matrix[i] = row
+    return matrix
+
+
 def read_problem(path):
     with Path(path).open("rb") as stream:
         header = stream.readline().removeprefix(b"\xef\xbb\xbf").split()
@@ -25,13 +47,9 @@ def read_problem(path):
         demand = read_row(stream, m)
         if min(supply) < 0 or min(demand) < 0 or sum(supply) != sum(demand):
             raise ValueError("Нужны неотрицательные и сбалансированные запасы и потребности")
-        costs = [read_row(stream, m) for _ in range(n)]
+        matrix = read_costs(stream, n, m)
         if stream.read().strip():
             raise ValueError("Лишние данные после матрицы тарифов")
-    try:
-        matrix = np.array(costs, dtype=np.int64)
-    except OverflowError:
-        matrix = np.array(costs, dtype=object)
     return supply, demand, matrix
 
 
