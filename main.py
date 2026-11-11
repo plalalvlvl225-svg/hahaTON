@@ -4,16 +4,19 @@
 перевозок в файл out.txt (оба файла – в текущей папке).
 
 Запуск:
-    python main.py
+    python main.py            – решить задачу;
+    python main.py --verify   – после записи out.txt дополнительно доказать,
+                                что найденный план оптимален.
 """
 
 import os
+import sys
 import time
 
 # Отсчёт времени начинается до загрузки NumPy: она тоже входит во время работы.
 START = time.perf_counter()
 
-from solver import solve_transport
+from solver import solve_transport, verify_plan
 from transport_io import read_problem, write_plan
 
 IN_FILE = "in.txt"
@@ -27,6 +30,18 @@ def data_folder():
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def report(message):
+    """Печатает сообщение для человека.
+
+    Результат к этому моменту уже записан в out.txt, поэтому сбой печати
+    (например, из-за кодировки консоли) не должен завершать программу ошибкой.
+    """
+    try:
+        print(message)
+    except (UnicodeError, OSError):
+        pass
+
+
 def main():
     folder = data_folder()
     supply, demand, costs = read_problem(os.path.join(folder, IN_FILE))
@@ -36,9 +51,13 @@ def main():
     write_plan(os.path.join(folder, OUT_FILE), plan.total_cost, plan.shipments, len(demand))
     elapsed = time.perf_counter() - START
 
-    print(f"Поставщиков: {len(supply)}, потребителей: {len(demand)}")
-    print(f"Минимальные затраты: {plan.total_cost}")
-    print(f"Результат записан в {OUT_FILE}, время работы: {elapsed:.3f} с")
+    report(f"Поставщиков: {len(supply)}, потребителей: {len(demand)}")
+    report(f"Минимальные затраты: {plan.total_cost}")
+    report(f"Результат записан в {OUT_FILE}, время работы: {elapsed:.3f} с")
+
+    if "--verify" in sys.argv[1:]:
+        verify_plan(supply, demand, costs, plan)
+        report("Проверка пройдена: план допустим, его оптимальность доказана потенциалами")
 
 
 if __name__ == "__main__":
