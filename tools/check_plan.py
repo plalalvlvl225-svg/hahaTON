@@ -112,5 +112,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     sys.set_int_max_str_digits(0)
     rows, cols, used, components, total, lower = check(args.input, args.output)
-    print(f"{rows}x{cols}, {used} positive routes, {components} components")
-    print(f"plan cost={total}, independently reconstructed dual lower bound={lower}")
+    print(f"{rows} x {cols}, положительных маршрутов {used}, компонент связности {components}")
+    print(f"Стоимость плана = {total}, двойственная нижняя граница = {lower}")
