@@ -118,6 +118,13 @@ class OptimizerTests(unittest.TestCase):
         q = 10 ** 50 + 1
         self.assert_optimum([q, q], [q, q], [[high, low], [low, high]], 2 * q * low)
 
+    def test_numpy_integers_inside_object_array(self):
+        low = -(1 << 63)
+        values = [np.int64(x) for x in (low, low, low, 0)]
+        costs = np.array(values, dtype=object).reshape(2, 2)
+        plan = transport.solve([1, 1], [1, 1], costs)
+        self.assertEqual(plan, [{1: 1}, {0: 1}])
+
     def test_arbitrary_precision_costs_differ_by_one(self):
         base = 10 ** 100
         q = 10 ** 70 + 3

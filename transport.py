@@ -39,6 +39,10 @@ def normalized_costs(costs):
     """Remove row and column offsets. Use fixed-width math only with headroom."""
     # A tree potential is a signed sum on a path of < n+m edges. A reduced
     # cost uses two potentials. Reserve room for the 32 tight-flow updates too.
+    if costs.dtype == object:
+        # An object array provided by a caller can still contain fixed-width
+        # NumPy scalar integers. Make the wide arithmetic exact in that case.
+        costs = np.frompyfunc(int, 1, 1)(costs)
     headroom = 2 * sum(costs.shape) + 128
     span = int(costs.max()) - int(costs.min())
     if span * headroom > 2**63 - 1:
